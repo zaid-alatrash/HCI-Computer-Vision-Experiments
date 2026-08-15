@@ -1,4 +1,4 @@
-# كود اكتشاف المنتج إذا كان صالحاً أو فاسداً بناءً على تحليل اللون
+# Experiment for detecting whether a product is good or bad based on color analysis
 import cv2
 import numpy as np
 
@@ -6,11 +6,12 @@ cap = cv2.VideoCapture(0)
 last_rects = {}
 alpha = 0.3
 
-# نطاق التتبع (Track Range): يدمج الأصفر والبني معاً لضمان أن يظل المستطيل يحيط بالثمرة حتى لو تغير لونها بالكامل
+# Tracking range: combines yellow and brown to ensure the rectangle continues
+# surrounding the fruit even if its color changes completely
 track_lower = np.array([0, 15, 15])
 track_upper = np.array([50, 255, 255])
 
-# نطاق اللون البني فقط: يستخدم داخل المربع المكتشف لفحص وجود بقع عفن أو تلف
+# Brown color range: used inside the detected rectangle to check for mold or damage
 brown_lower = np.array([3, 80, 20])
 brown_upper = np.array([16, 255, 120])
 
@@ -18,30 +19,30 @@ while True:
     ret, frame = cap.read()
     if not ret: break
 
-    # تحويل الصورة إلى نظام HSV لتسهيل عزل درجات الألوان بدقة
+    # Convert the image to HSV to make color isolation more accurate and less affected by lighting
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
     
-    # إنشاء قناع (Mask) لملاحقة الجسم (يشمل درجات الأصفر والبرتقالي والبني)
+    # Create a mask for tracking the object (includes yellow, orange, and brown shades)
     track_mask = cv2.inRange(hsv, track_lower, track_upper)
 
-    # تنظيف القناع من الشوائب الناتجة عن الإضاءة باستخدام العمليات المورفولوجية
+    # Clean the mask from noise caused by lighting using morphological operations
     kernel = np.ones((5,5), np.uint8)
-    track_mask = cv2.morphologyEx(track_mask, cv2.MORPH_OPEN, kernel) # حذف النقاط الصغيرة
-    track_mask = cv2.morphologyEx(track_mask, cv2.MORPH_CLOSE, kernel) # ملء الثقوب داخل الجسم
+    track_mask = cv2.morphologyEx(track_mask, cv2.MORPH_OPEN, kernel) # Remove small points
+    track_mask = cv2.morphologyEx(track_mask, cv2.MORPH_CLOSE, kernel) # Fill holes inside the object
 
-    # استخراج الخطوط الخارجية (Contours) للأجسام المكتشفة
+    # Extract the outer contours of the detected objects
     contours, _ = cv2.findContours(track_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     current_rects = []
     for cnt in contours:
         area = cv2.contourArea(cnt)
-        # فلترة الأجسام بناءً على المساحة (تجاهل أي جسم أصغر من 2000 بكسل)
+        # Filter objects based on area (ignore any object smaller than 2000 pixels)
         if area > 2000:
             current_rects.append(cv2.boundingRect(cnt))
 
     new_last_rects = {}
     for i, rect in enumerate(current_rects):
-        # تطبيق التنعيم (Alpha Smoothing) لضمان ثبات المستطيل ومنع اهتزازه أثناء الحركة
+        # Apply alpha smoothing to keep the rectangle stable and prevent shaking during movement
         if i in last_rects:
             prev = last_rects[i]
             smoothed = [
@@ -56,37 +57,37 @@ while True:
 
         rx, ry, rw, rh = new_last_rects[i]
         
-        # استقطاع منطقة الجسم فقط (ROI) لتحليلها لونياً بشكل مستقل عن باقي الصورة
+        # Extract only the object region (ROI) to analyze its color independently from the rest of the image
         roi_hsv = hsv[ry:ry+rh, rx:rx+rw]
         
-        # إنشاء قناع خاص باللون البني داخل منطقة الجسم فقط
+        # Create a mask specifically for the brown color inside the detected object region
         brown_pixel_mask = cv2.inRange(roi_hsv, brown_lower, brown_upper)
         
-        # حساب عدد البكسلات البنية المكتشفة
+        # Calculate the number of detected brown pixels
         brown_count = cv2.countNonZero(brown_pixel_mask)
-        # حساب المساحة الكلية للمربع المكتشف
+        # Calculate the total area of the detected rectangle
         total_pixels = rw * rh
-        # حساب النسبة المئوية للون البني بالنسبة لحجم الجسم
+        # Calculate the percentage of brown color relative to the object size
         brown_ratio = (brown_count / total_pixels) * 100
 
-        # اتخاذ القرار: إذا كانت نسبة اللون البني > 1%، يُصنف كمنتج فاسد (Bad)
+        # Make the decision: if the brown percentage is greater than 1%, classify the product as bad
         if brown_ratio > 1:  
             status = f"Bad"
-            color = (0, 0, 255) # لون أحمر للتنبيه
+            color = (0, 0, 255) # Red color for warning
         else:
             status = "Good"
-            color = (0, 255, 0) # لون أخضر للمنتج السليم
+            color = (0, 255, 0) # Green color for a good product
 
-        # رسم المستطيل وكتابة الحالة (صالحة/فاسدة) فوق الجسم مباشرة
+        # Draw the rectangle and display the status above the detected object
         cv2.rectangle(frame, (rx, ry), (rx+rw, ry+rh), color, 3)
         cv2.putText(frame, status, (rx, ry-10),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
 
-    # تحديث الذاكرة لاستخدامها في تنعيم الفريم القادم
+    # Update the memory to use smoothing for the next frame
     last_rects = new_last_rects
     cv2.imshow("Lemon Quality Check", frame)
 
-    # التوقف عند الضغط على مفتاح 'q'
+    # Stop when the 'q' key is pressed
     if cv2.waitKey(1) & 0xFF == ord('q'): break
 
 cap.release()
