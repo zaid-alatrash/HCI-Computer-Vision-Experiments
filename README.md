@@ -433,20 +433,4 @@ Examples include:
 
 These experiments were developed as part of a **Human-Computer Interaction (HCI)** course to explore the interaction between users and computer vision systems.
 
----
 
-## Academic Context
-
-**Course:** Human-Computer Interaction (HCI)
-
-**Project Type:** Computer Vision Experiments
-
-**Implementation:** Python + OpenCV + NumPy
-
----
-
-## Author
-
-Developed as part of an HCI course project.
-
-If you found the project useful or interesting, feel free to explore the individual experiments and experiment with the parameters and detection techniques.
