@@ -1,13 +1,13 @@
-# تجربة حساب كم جسم لونه أصفر 
+# Experiment for counting the number of yellow objects
 import cv2
 import numpy as np
 from util import get_limits
 
-# تحديد اللون المستهدف بتنسيق BGR (أصفر)
+# Define the target color in BGR format (yellow)
 target_color_bgr = [0, 255, 255] 
 cap = cv2.VideoCapture(0)
 
-# قاموس لتخزين إحداثيات المستطيلات السابقة لغرض التنعيم، ومعامل التنعيم alpha
+# Dictionary for storing previous rectangle coordinates for smoothing, and smoothing factor alpha
 last_rects = {} 
 alpha = 0.3
 
@@ -15,38 +15,38 @@ while True:
     ret, frame = cap.read()
     if not ret: break
 
-    # تحويل الصورة من BGR إلى HSV لأن التعامل مع الألوان فيها أدق
+    # Convert the image from BGR to HSV because color handling is more accurate in HSV
     hsvImage = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
     
-    # استخراج حدود اللون (أقل وأعلى قيمة) بناءً على اللون المطلوب
+    # Extract the color boundaries (lower and upper values) based on the target color
     lowerLimit, upperLimit = get_limits(color=target_color_bgr)
     
-    # إنشاء "قناع" يظهر الأماكن التي يظهر فيها اللون المطلوب فقط باللون الأبيض والباقي أسود
+    # Create a mask that shows only the areas containing the target color in white and the rest in black
     mask = cv2.inRange(hsvImage, lowerLimit, upperLimit)
 
-    # عمليات مورفولوجية (تنظيف القناع) لإزالة النقاط البيضاء الصغيرة وسد الفجوات داخل الأجسام
+    # Morphological operations to clean the mask by removing small white points and filling gaps inside objects
     kernel = np.ones((5, 5), np.uint8)
-    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel) # إزالة الضجيج
-    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel) # سد الفتحات
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel) # Remove noise
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel) # Fill gaps
 
-    # البحث عن "الكنتور" أو الحدود الخارجية لكل كتلة لونية منفصلة في القناع
+    # Find the outer boundaries of each separate colored region in the mask
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     
-    yellow_count = 0 # عداد الأجسام الصفراء
-    current_rects = [] # قائمة لتخزين المستطيلات المكتشفة في الفريم الحالي
+    yellow_count = 0 # Counter for yellow objects
+    current_rects = [] # List for storing the detected rectangles in the current frame
 
     for cnt in contours:
-        # حساب مساحة الكتلة اللونية لتجنب عد النقاط الصغيرة جداً كأجسام
+        # Calculate the area of the colored region to avoid counting very small points as objects
         area = cv2.contourArea(cnt)
         if area > 1000:
-            # الحصول على إحداثيات المستطيل المحيط بالكتلة (السين، الصاد، العرض، الطول)
+            # Get the coordinates of the bounding rectangle (x, y, width, height)
             x, y, w, h = cv2.boundingRect(cnt)
             current_rects.append((x, y, w, h))
-            yellow_count += 1 # زيادة العداد عند اكتشاف جسم يحقق الشروط
+            yellow_count += 1 # Increment the counter when an object meets the conditions
 
-    new_last_rects = {} # لتخزين المستطيلات الجديدة بعد "التنعيم"
+    new_last_rects = {} # Store the new rectangles after smoothing
     for i, rect in enumerate(current_rects):
-        # إذا كان الجسم موجوداً في الفريم السابق، يتم دمج الإحداثيات لتقليل الاهتزاز (Smoothing)
+        # If the object existed in the previous frame, blend the coordinates to reduce movement
         if i in last_rects:
             prev_rect = last_rects[i]
             smoothed = [
@@ -59,21 +59,21 @@ while True:
         else:
             new_last_rects[i] = list(rect)
 
-        # رسم المستطيل الأخضر حول كل جسم بناءً على الإحداثيات المنعمة
+        # Draw a green rectangle around each object using the smoothed coordinates
         rx, ry, rw, rh = new_last_rects[i]
         cv2.rectangle(frame, (rx, ry), (rx + rw, ry + rh), (0, 255, 0), 4)
 
-    # تحديث قائمة المستطيلات للفريم القادم
+    # Update the rectangle list for the next frame
     last_rects = new_last_rects
 
-    # كتابة عدد الأجسام الصفراء المكتشفة على الشاشة
+    # Display the number of detected yellow objects on the screen
     cv2.putText(frame, f"Yellow objects: {yellow_count}", (20, 40),
                 cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
-    # عرض النتيجة النهائية
+    # Display the final result
     cv2.imshow('Multi-Object Stable Detection', frame)
 
-    # الخروج من البرنامج عند الضغط على حرف 'q'
+    # Exit the program when the 'q' key is pressed
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 
