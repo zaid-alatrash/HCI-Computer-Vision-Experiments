@@ -4,6 +4,9 @@ import numpy as np
 # Load the video file from the specified path
 video_path = input("Enter the path to the video file: ")
 cap = cv2.VideoCapture(video_path)
+if not cap.isOpened():
+    print("Could not open the video file.")
+    exit()
 
 # Set up the Background Subtraction engine
 # This engine builds a model of the static scene and considers sudden changes as motion
