@@ -2,7 +2,8 @@ import cv2
 import numpy as np
 
 # Load the video file from the specified path
-cap = cv2.VideoCapture("C:\\Users\\Zaytona\\Videos\\Captures\\v3.WMV")
+video_path = input("Enter the path to the video file: ")
+cap = cv2.VideoCapture(video_path)
 
 # Set up the Background Subtraction engine
 # This engine builds a model of the static scene and considers sudden changes as motion
