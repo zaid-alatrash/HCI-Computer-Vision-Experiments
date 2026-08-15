@@ -5,7 +5,10 @@ import numpy as np
 # Load the video from the specified path
 video_path = input("Enter the path to the video file: ")
 cap = cv2.VideoCapture(video_path)
-
+if not cap.isOpened():
+    print("Could not open the video file.")
+    exit()
+    
 # Create a Background Subtraction engine to isolate moving objects from the road
 bg_subtractor = cv2.createBackgroundSubtractorMOG2(
     history=300,        # Number of frames remembered by the engine to build the background model
