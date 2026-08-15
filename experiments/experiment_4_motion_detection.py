@@ -1,15 +1,15 @@
 import cv2
 import numpy as np
 
-# تحميل ملف الفيديو من المسار المحدد
+# Load the video file from the specified path
 cap = cv2.VideoCapture("C:\\Users\\Zaytona\\Videos\\Captures\\v3.WMV")
 
-# إعداد محرك "طرح الخلفية" (Background Subtraction)
-# هذا المحرك يقوم ببناء نموذج للمشهد الثابت ويعتبر أي تغيير مفاجئ "حركة"
+# Set up the Background Subtraction engine
+# This engine builds a model of the static scene and considers sudden changes as motion
 bg_subtractor = cv2.createBackgroundSubtractorMOG2(
-    history=500,       # عدد الفريمات السابقة التي يعتمد عليها المحرك لفهم الخلفية
-    varThreshold=120,  # عتبة الحساسية؛ رفعنا القيمة هنا ليتجاهل الاهتزازات البسيطة للكاميرا
-    detectShadows=False # إلغاء كشف الظلال لتجنب اعتبار ظل السيارة كجسم متحرك
+    history=500,       # Number of previous frames used by the engine to understand the background
+    varThreshold=120,  # Sensitivity threshold; increasing it makes the system ignore minor camera movements
+    detectShadows=False # Disable shadow detection to avoid considering a car's shadow as a moving object
 )
 
 while True:
@@ -17,45 +17,45 @@ while True:
     if not ret:
         break
 
-    # تغيير أبعاد الفيديو لتسريع عملية المعالجة وتوحيد العرض
+    # Resize the video to speed up processing and standardize the display
     frame = cv2.resize(frame, (800, 450))
     
-    # تحويل الصورة لرمادي ثم تطبيق "تنعيم غاوسي" (Gaussian Blur)
-    # هذه الخطوة أساسية لتقليل "الضجيج الرقمي" واهتزاز البكسلات الناتج عن حركة الكاميرا
+    # Convert the image to grayscale and apply Gaussian Blur
+    # This step is essential for reducing digital noise and pixel movement caused by camera motion
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     gray = cv2.GaussianBlur(gray, (25, 25), 0)
 
-    # تطبيق المحرك على الصورة المنعمة للحصول على "قناع الحركة" (Foreground Mask)
+    # Apply the engine to the smoothed image to obtain the motion mask
     fg_mask = bg_subtractor.apply(gray)
     
-    # تحويل القناع لصورة ثنائية (أبيض وأسود فقط) لتحديد الأجسام المتحركة بوضوح
+    # Convert the mask to a binary image (black and white) to clearly identify moving objects
     _, fg_mask = cv2.threshold(fg_mask, 240, 255, cv2.THRESH_BINARY)
 
-    # تحسين شكل القناع باستخدام العمليات المورفولوجية
-    # MORPH_CLOSE: لدمج الأجزاء المتقطعة من الجسم الواحد (مثل ربط سقف السيارة بأسفلها)
-    # dilate: تضخيم الكتلة البيضاء لضمان إحاطة المستطيل بالجسم كاملاً
+    # Improve the mask using morphological operations
+    # MORPH_CLOSE: connects separated parts of the same object (such as connecting the top and bottom of a car)
+    # dilate: enlarges the white region to ensure the rectangle surrounds the entire object
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (15, 15))
     fg_mask = cv2.morphologyEx(fg_mask, cv2.MORPH_CLOSE, kernel)
     fg_mask = cv2.dilate(fg_mask, kernel, iterations=1)
 
-    # البحث عن الحدود الخارجية (Contours) للكتل البيضاء المكتشفة في القناع
+    # Find the outer contours of the white regions detected in the mask
     contours, _ = cv2.findContours(fg_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     for cnt in contours:
-        # حساب مساحة الكتلة؛ إذا كانت أصغر من 3000 بكسل نعتبرها ضوضاء (مثل اهتزاز شجر أو رصيف)
+        # Calculate the region area; if it is smaller than 3000 pixels, consider it noise (such as tree or sidewalk movement)
         if cv2.contourArea(cnt) < 3000: 
             continue
 
-        # تحديد أبعاد المربع الذي يحيط بالكتلة المتحركة
+        # Determine the dimensions of the rectangle surrounding the moving object
         x, y, w, h = cv2.boundingRect(cnt)
 
-        # رسم المستطيل الأخضر حول الجسم المتحرك في الصورة الأصلية
+        # Draw a green rectangle around the moving object in the original frame
         cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
 
-    # عرض النافذة النهائية التي تظهر المربعات حول الأجسام المتحركة فقط
+    # Display the final window showing rectangles around moving objects only
     cv2.imshow("Motion Detection Only", frame)
 
-    # الخروج من البرنامج عند الضغط على مفتاح 'q'
+    # Exit when the 'q' key is pressed or wait 30 milliseconds between frames
     if cv2.waitKey(30) & 0xFF == ord('q'):
         break
 
