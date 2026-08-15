@@ -3,7 +3,8 @@ import cv2
 import numpy as np
 
 # Load the video from the specified path
-cap = cv2.VideoCapture("C:\\Users\\Zaytona\\Videos\\Captures\\v1.WMV")
+video_path = input("Enter the path to the video file: ")
+cap = cv2.VideoCapture(video_path)
 
 # Create a Background Subtraction engine to isolate moving objects from the road
 bg_subtractor = cv2.createBackgroundSubtractorMOG2(
