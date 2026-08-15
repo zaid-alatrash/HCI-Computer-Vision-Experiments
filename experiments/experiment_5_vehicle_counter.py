@@ -1,23 +1,23 @@
-# كود عد السيارات الإجمالي وعد السيارات ذات اللون الأحمر
+# Code for counting total vehicles and red vehicles
 import cv2
 import numpy as np
 
-# تحميل الفيديو من المسار المحدد
+# Load the video from the specified path
 cap = cv2.VideoCapture("C:\\Users\\Zaytona\\Videos\\Captures\\v1.WMV")
 
-# إنشاء محرك طرح الخلفية (Background Subtraction) لعزل الأجسام المتحركة عن الطريق
+# Create a Background Subtraction engine to isolate moving objects from the road
 bg_subtractor = cv2.createBackgroundSubtractorMOG2(
-    history=300,        # عدد الفريمات التي يتذكرها المحرك لبناء نموذج الخلفية
-    varThreshold=80,    # عتبة الحساسية (كلما زادت قل الضجيج المكتشف)
-    detectShadows=False # إيقاف كشف الظلال لزيادة سرعة الأداء
+    history=300,        # Number of frames remembered by the engine to build the background model
+    varThreshold=80,    # Sensitivity threshold (the higher it is, the less noise is detected)
+    detectShadows=False # Disable shadow detection to improve processing speed
 )
 
-# تعريف العدادات وإحداثيات خط العد
+# Define counters and the coordinates of the counting line
 car_count = 0
 red_car_count = 0
-line_position = 225  # موقع الخط الوهمي الذي عند تجاوزه يتم عد السيارة
+line_position = 225  # Position of the imaginary line that triggers vehicle counting when crossed
 
-detected_ids = set() # مجموعة لتخزين المعرفات الفريدة للأجسام لمنع تكرار عدها
+detected_ids = set() # Set for storing unique object IDs to prevent duplicate counting
 object_id = 0
 
 while True:
@@ -25,76 +25,76 @@ while True:
     if not ret:
         break
 
-    # تغيير حجم الصورة لضمان سرعة المعالجة وتوحيد الأبعاد
+    # Resize the image to ensure faster processing and standardized dimensions
     frame = cv2.resize(frame, (800,450))
 
-    # تطبيق محرك طرح الخلفية للحصول على قناع يظهر الأجسام المتحركة فقط
+    # Apply the Background Subtraction engine to obtain a mask containing only moving objects
     fg_mask = bg_subtractor.apply(frame)
 
-    # تحويل القناع إلى صورة ثنائية (أبيض وأسود فقط) لإزالة التدرجات الرمادية والضجيج
+    # Convert the mask to a binary image (black and white) to remove grayscale variations and noise
     _, fg_mask = cv2.threshold(fg_mask, 200, 255, cv2.THRESH_BINARY)
 
-    # تحسين القناع باستخدام العمليات المورفولوجية (فتح وتمدد) لربط أجزاء السيارة ببعضها
+    # Improve the mask using morphological operations (opening and dilation) to connect parts of the vehicle
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (7,7))
-    fg_mask = cv2.morphologyEx(fg_mask, cv2.MORPH_OPEN, kernel) # إزالة النمش الصغير
-    fg_mask = cv2.dilate(fg_mask, kernel, iterations=2)        # تضخيم الأجسام لسد الفجوات
+    fg_mask = cv2.morphologyEx(fg_mask, cv2.MORPH_OPEN, kernel) # Remove small noise
+    fg_mask = cv2.dilate(fg_mask, kernel, iterations=2)        # Enlarge objects to fill gaps
 
-    # إيجاد الخطوط الخارجية (Contours) لكل جسم متحرك في القناع
+    # Find the outer contours of each moving object in the mask
     contours, _ = cv2.findContours(fg_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     for cnt in contours:
-        # تجاهل الأجسام الصغيرة جداً التي لا تمثل سيارات (مثل المشاة أو ضجيج الكاميرا)
+        # Ignore very small objects that do not represent vehicles (such as pedestrians or camera noise)
         if cv2.contourArea(cnt) < 2500:
             continue
 
-        # الحصول على إحداثيات المربع المحيط بالسيارة
+        # Get the coordinates of the bounding rectangle around the vehicle
         x, y, w, h = cv2.boundingRect(cnt)
         
-        # حساب نقطة المنتصف الرأسية للسيارة (Center Y)
+        # Calculate the vertical center point of the vehicle (Center Y)
         center_y = y + h // 2
 
-        # التحقق إذا كانت السيارة تمر الآن فوق "خط العد" الوهمي
+        # Check whether the vehicle is currently crossing the imaginary counting line
         if abs(center_y - line_position) < 5:
-            # التأكد من أن هذه السيارة لم يتم رصدها وعدّها من قبل
+            # Make sure this vehicle has not already been detected and counted
             if object_id not in detected_ids:
                 detected_ids.add(object_id)
-                car_count += 1 # زيادة العداد العام للسيارات
+                car_count += 1 # Increase the total vehicle counter
 
-                # --- منطق كشف اللون الأحمر ---
-                # استقطاع صورة السيارة فقط (ROI) لتحليل لونها
+                # --- Red color detection logic ---
+                # Extract only the vehicle image (ROI) for color analysis
                 roi = frame[y:y+h, x:x+w]
                 hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
 
-                # تعريف نطاقي اللون الأحمر (لأن الأحمر يظهر في بداية ونهاية تدريج HSV)
+                # Define two red color ranges because red appears at both ends of the HSV scale
                 lower_red1, upper_red1 = np.array([0,120,70]), np.array([10,255,255])
                 lower_red2, upper_red2 = np.array([170,120,70]), np.array([180,255,255])
 
                 mask1 = cv2.inRange(hsv, lower_red1, upper_red1)
                 mask2 = cv2.inRange(hsv, lower_red2, upper_red2)
-                red_mask = mask1 + mask2 # دمج القناعين
+                red_mask = mask1 + mask2 # Combine the two masks
 
-                # إذا كان مجموع البكسلات الحمراء كبيراً كفاية، نعتبرها سيارة حمراء
+                # If the total number of red pixels is large enough, consider it a red vehicle
                 if np.sum(red_mask) > 5000:
                     red_car_count += 1
 
-                object_id += 1 # الانتقال للمعرف التالي
+                object_id += 1 # Move to the next ID
 
-        # رسم مستطيل أخضر حول كل سيارة متحركة تظهر في الكادر
+        # Draw a green rectangle around every moving vehicle visible in the frame
         cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
 
-    # طباعة النتائج (العدادات) على الفريم مباشرة
+    # Display the counters directly on the frame
     cv2.putText(frame, "Cars: " + str(car_count), (20, 40),
                 cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
     cv2.putText(frame, "Red Cars: " + str(red_car_count), (20, 80),
                 cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
 
-    # عرض الفيديو النهائي مع المربعات والعدادات
+    # Display the final video with the bounding boxes and counters
     cv2.imshow("Vehicle Counter", frame)
 
-    # الخروج عند الضغط على مفتاح 'q' أو انتظار 30 ميلي ثانية بين الفريمات
+    # Exit when the 'q' key is pressed or wait 30 milliseconds between frames
     if cv2.waitKey(30) & 0xFF == ord('q'):
         break
 
-# إغلاق مصادر الفيديو والنوافذ
+# Close the video source and windows
 cap.release()
 cv2.destroyAllWindows()
